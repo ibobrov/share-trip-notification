@@ -49,12 +49,12 @@ func main() {
 
 	logger, logFile, err := app.NewLogger()
 	if err != nil {
-		panic(err)
+		log.Fatalf("app.NewLogger(): %v", err)
 	}
 	defer func(logFile *os.File) {
 		err := logFile.Close()
 		if err != nil {
-			panic(err)
+			log.Fatalf("logFile.Close(): %v", err)
 		}
 	}(logFile)
 	application.Use(middleware.Correlation(logger))
@@ -63,6 +63,5 @@ func main() {
 	httpPort := config.Env("HTTP_PORT", "8080")
 	if err := application.Listen(":" + httpPort); err != nil {
 		log.Fatalf("application.Listen: %v", err)
-		return
 	}
 }

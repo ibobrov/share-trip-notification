@@ -1,0 +1,63 @@
+@startuml
+title Публикация поездки и идемпотентное создание уведомления
+hide footbox
+skinparam shadowing false
+skinparam maxMessageSize 60
+actor Клиент as client
+participant ShareTrip as trip
+participant "Contract Service" as contract
+database "ShareTrip PostgreSQL" as tripsDB
+queue "Kafka: trip.events" as kafka
+participant "Notification consumer" as consumer
+participant "Notification service/domain" as notification
+database "Notification PostgreSQL" as notificationsDB
+
+client -> trip: Опубликовать поездку
+trip -> tripsDB: SELECT без блокировки
+tripsDB --> trip: Компания и данные поездки
+trip -> contract: CheckOption(company_id, trip_publication)
+contract --> trip: allowed=true
+trip -> tripsDB: BEGIN; SELECT FOR UPDATE; UPDATE trips; INSERT history; INSERT outbox
+trip -> tripsDB: COMMIT
+tripsDB --> trip: OK
+trip -> kafka: TripPublished, key=trip_id, acks=all
+kafka --> trip: ACK
+trip --> client: 201 Created
+
+consumer -> kafka: FetchMessage, group=notification-service
+kafka --> consumer: Событие и offset
+consumer -> consumer: Разобрать JSON и проверить транспортные поля
+alt Другой event_type
+  consumer -> kafka: CommitMessages
+else TripPublished
+  consumer -> notification: HandleTripPublished(request)
+  notification -> notificationsDB: BEGIN
+  notification -> notificationsDB: INSERT processed_events ON CONFLICT DO NOTHING
+  alt event_id новый
+    notificationsDB --> notification: Вставлена одна строка
+    notification -> notificationsDB: INSERT notifications: recipient_id=client_id, type=trip_published
+  else event_id уже обработан
+    notificationsDB --> notification: Строка не вставлена
+    note over notification: Уведомление повторно не создаётся
+  end
+  alt Транзакция успешна
+    notification -> notificationsDB: COMMIT
+    notificationsDB --> notification: OK
+    notification --> consumer: success / already_processed
+    consumer -> kafka: CommitMessages(offset)
+  else Ошибка обработки
+    notification -> notificationsDB: ROLLBACK
+    notification --> consumer: error
+    note over consumer, kafka
+      Offset не подтверждается.
+      Consumer завершается, приложение останавливается.
+      После перезапуска событие доставляется повторно.
+    end note
+  end
+end
+note over consumer, kafka
+  Невалидное событие: остановка без commit offset.
+  Если Kafka commit не удался после COMMIT БД,
+  повторная доставка не создаст дубль уведомления.
+end note
+@enduml

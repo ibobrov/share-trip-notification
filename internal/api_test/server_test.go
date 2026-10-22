@@ -22,11 +22,12 @@ import (
 const notificationTestURL = "http://localhost/api/notification/"
 
 var (
-	testCtx       context.Context
-	testDB        *sql.DB
-	testPool      *pgxpool.Pool
-	testApp       *fiber.App
-	testContainer *postgres.PostgresContainer
+	testCtx                 context.Context
+	testDB                  *sql.DB
+	testPool                *pgxpool.Pool
+	testApp                 *fiber.App
+	testNotificationService *service.NotificationService
+	testContainer           *postgres.PostgresContainer
 )
 
 func TestMain(m *testing.M) {
@@ -69,8 +70,8 @@ func TestMain(m *testing.M) {
 
 	notificationRepo := repository.NewNotificationRepository()
 	notificationUseCase := domain.NewNotificationUseCase(notificationRepo)
-	notificationService := service.NewNotificationService(testPool, notificationUseCase)
-	server := api.NewServer(testPool, notificationService)
+	testNotificationService = service.NewNotificationService(testPool, notificationUseCase)
+	server := api.NewServer(testPool, testNotificationService)
 
 	testApp = fiber.New()
 	server.Route(testApp.Group(""))

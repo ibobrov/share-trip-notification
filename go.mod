@@ -12,7 +12,10 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.44.0
 )
 
-require github.com/stretchr/testify v1.12.1
+require (
+	github.com/segmentio/kafka-go v0.4.51
+	github.com/stretchr/testify v1.12.1
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -56,6 +59,7 @@ require (
 	github.com/molecule-man/go-brrr v1.3.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/pierrec/lz4/v4 v4.1.29 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.6 // indirect

@@ -106,3 +106,7 @@ go test ./internal/api_test -run TestConsumer_KafkaAndPostgres -count=1 -v
 Ограничение producer ShareTrip остаётся прежним: доставка из его outbox пока
 не автоматизирована. Consumer обеспечивает идемпотентность только для событий,
 которые действительно попали в Kafka.
+
+ShareTrip отправляет событие фоновым publisher из существующей `outbox_event`,
+после сохранения публикации поездки и события в одной транзакции. Повторная
+отправка сохраняет `event_id`; существующая `processed_events` защищает от дублей.

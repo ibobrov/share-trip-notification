@@ -45,7 +45,7 @@ func TestConsumer_KafkaAndPostgres(t *testing.T) {
 			require.NoError(t, result.Errors[groupID])
 		}
 	}()
-	consumer := events.NewConsumer(brokers, topic, groupID, testNotificationService)
+	consumer := events.NewConsumer(brokers, topic, groupID, testNotificationService, 10*time.Second)
 	consumerCtx, stopConsumer := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() { done <- consumer.Run(consumerCtx) }()

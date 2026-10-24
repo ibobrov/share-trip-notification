@@ -5,3 +5,5 @@
 bin
 deploy/logs
 http-client.private.env.json
+.env.*
+!.env.example

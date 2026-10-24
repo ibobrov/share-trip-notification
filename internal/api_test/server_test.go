@@ -74,7 +74,7 @@ func TestMain(m *testing.M) {
 	server := api.NewServer(testPool, testNotificationService)
 
 	testApp = fiber.New()
-	server.Route(testApp.Group(""))
+	server.Route(testApp.Group(""), 2*time.Second)
 
 	code := m.Run()
 

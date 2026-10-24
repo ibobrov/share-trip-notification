@@ -20,8 +20,9 @@ type messageReader interface {
 }
 
 type Consumer struct {
-	reader  messageReader
-	handler service.TripPublishedHandler
+	reader        messageReader
+	handler       service.TripPublishedHandler
+	handleTimeout time.Duration
 }
 
 type TripPublished struct {
@@ -33,14 +34,15 @@ type TripPublished struct {
 	OccurredAt string `json:"occurred_at" valid:"required,rfc3339"`
 }
 
-func NewConsumer(brokers []string, topic, groupID string, handler service.TripPublishedHandler) *Consumer {
+func NewConsumer(brokers []string, topic, groupID string, handler service.TripPublishedHandler, handleTimeout time.Duration) *Consumer {
 	return &Consumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
 			Brokers: brokers, Topic: topic, GroupID: groupID,
 			StartOffset: kafka.FirstOffset, CommitInterval: 0,
 			MinBytes: 1, MaxBytes: 10e6, MaxWait: time.Second,
 		}),
-		handler: handler,
+		handler:       handler,
+		handleTimeout: handleTimeout,
 	}
 }
 
@@ -98,7 +100,7 @@ func (c *Consumer) process(ctx context.Context, message kafka.Message) error {
 	if eventID == uuid.Nil || tripID == uuid.Nil || clientID == uuid.Nil || strings.TrimSpace(event.CompanyID) == "" {
 		return fmt.Errorf("event identifiers and company_id must be nonempty")
 	}
-	handlingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	handlingCtx, cancel := context.WithTimeout(ctx, c.handleTimeout)
 	defer cancel()
 	_, err = c.handler.HandleTripPublished(handlingCtx, service.HandleTripPublishedRequest{
 		EventID: eventID, TripID: tripID, ClientID: clientID,

@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ibobrov/share-trip-notification/internal/service"
 	"github.com/segmentio/kafka-go"
@@ -84,7 +85,7 @@ func TestConsumer_Run(t *testing.T) {
 			message := kafka.Message{Topic: "trip.events", Partition: 0, Offset: 42, Value: []byte(tt.body)}
 			reader := &readerStub{messages: []kafka.Message{message}, calls: &calls, commitError: tt.commitError}
 			handler := &handlerStub{calls: &calls, err: tt.handlerError}
-			consumer := &Consumer{reader: reader, handler: handler}
+			consumer := &Consumer{reader: reader, handler: handler, handleTimeout: 10 * time.Second}
 			err := consumer.Run(t.Context())
 			require.Error(t, err)
 			if tt.wantError != nil {

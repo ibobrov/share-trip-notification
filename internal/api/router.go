@@ -7,10 +7,10 @@ import (
 	"github.com/ibobrov/share-trip-notification/internal/observability/middleware"
 )
 
-func (s *Server) Route(route fiber.Router) {
+func (s *Server) Route(route fiber.Router, requestTimeout time.Duration) {
 	notifications := route.Group(
 		"/api/notification",
-		middleware.TimeoutMiddleware(2*time.Second),
+		middleware.TimeoutMiddleware(requestTimeout),
 	)
 
 	notifications.Get("/:notificationId", s.GetNotification)

@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -31,8 +30,12 @@ func main() {
 }
 
 func run() error {
-	if err := godotenv.Load(); err != nil {
-		log.Println(".env file not found, using environment variables")
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("load .env: invalid or unreadable file")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("configuration: %w", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -40,16 +43,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	dbConfig := repository.Config{
-		Host:     config.Env("DB_HOST", "localhost"),
-		Port:     config.EnvInt("POSTGRES_PORT", 6544),
-		User:     config.Env("POSTGRES_USER", "postgres"),
-		Password: config.Env("POSTGRES_PASSWORD", "password"),
-		DBName:   config.Env("POSTGRES_DB", "sharetrip-notification"),
-		SSLMode:  config.Env("DB_SSLMODE", "disable"),
-	}
-
-	pool, err := repository.NewPool(ctx, dbConfig.DSN())
+	pool, err := repository.NewPool(ctx, cfg.DatabaseDSN)
 	if err != nil {
 		return fmt.Errorf("repository.NewPool: %w", err)
 	}
@@ -64,11 +58,14 @@ func run() error {
 		EnablePrintRoutes: true,
 	})
 
-	logger, logFile, err := app.NewLogger()
+	logger, logFile, err := app.NewLogger(cfg.LogFile, cfg.LogLevel)
 	if err != nil {
 		return fmt.Errorf("app.NewLogger: %w", err)
 	}
 	defer func(logFile *os.File) {
+		if logFile == nil {
+			return
+		}
 		err := logFile.Close()
 		if err != nil {
 			log.Printf("logFile.Close: %v", err)
@@ -76,20 +73,14 @@ func run() error {
 	}(logFile)
 	application.Use(middleware.Correlation(logger))
 
-	server.Route(application.Group(""))
-	brokers := strings.Split(config.Env("KAFKA_BROKERS", "localhost:9092"), ",")
-	for i := range brokers {
-		brokers[i] = strings.TrimSpace(brokers[i])
-	}
-	consumer := events.NewConsumer(brokers,
-		config.Env("KAFKA_TRIP_TOPIC", "trip.events"),
-		config.Env("KAFKA_GROUP_ID", "notification-service"), notificationService)
+	server.Route(application.Group(""), cfg.RequestTimeout)
+	consumer := events.NewConsumer(cfg.KafkaBrokers, cfg.TripEventsTopic, cfg.KafkaGroupID, notificationService, cfg.HandleTimeout)
 	defer func() {
 		if err := consumer.Close(); err != nil {
 			logger.Error("close Kafka consumer", "error", err)
 		}
 	}()
-	listener, err := net.Listen("tcp", ":"+config.Env("HTTP_PORT", "4001"))
+	listener, err := net.Listen("tcp", ":"+cfg.HTTPPort)
 	if err != nil {
 		return fmt.Errorf("HTTP listen: %w", err)
 	}

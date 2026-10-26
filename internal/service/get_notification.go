@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/ibobrov/share-trip-notification/internal/domain"
-	"github.com/ibobrov/share-trip-notification/internal/observability/logctx"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -27,11 +25,6 @@ type GetNotificationResponse struct {
 }
 
 func (s *NotificationService) GetNotification(ctx context.Context, req GetNotificationRequest) (GetNotificationResponse, error) {
-	logger := logctx.Logger(ctx).With(
-		slog.String("service", "NotificationService"),
-		slog.String("operation", "GetNotification"),
-		slog.String("layer", "service"),
-	)
 
 	result, err := tx(
 		ctx,
@@ -40,12 +33,6 @@ func (s *NotificationService) GetNotification(ctx context.Context, req GetNotifi
 			res, err := s.notificationUseCase.GetNotification(ctx, tx, domain.GetNotificationRequest{NotificationID: req.NotificationID})
 
 			if err != nil {
-
-				logger.Error(
-					"get notification usecase failed",
-					slog.String("layer", "transaction"),
-					slog.Any("error", err),
-				)
 				return nil, fmt.Errorf("usecase.GetNotification: %w", err)
 			}
 

@@ -30,8 +30,8 @@ func (s *Server) CreateNotification(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := logctx.Logger(ctx).With(
-		slog.String("server", "NotificationServer"),
-		slog.String("handler", "CreateNotification"),
+		slog.String("component", "NotificationServer"),
+		slog.String("operation", "CreateNotification"),
 	)
 
 	var req CreateNotificationRequest
@@ -39,7 +39,7 @@ func (s *Server) CreateNotification(c *fiber.Ctx) error {
 	if !ok {
 		return err
 	}
-	logger.Info("create notification request accepted")
+	logger.Debug("create notification request accepted")
 
 	res, err := s.notificationService.CreateNotification(c.UserContext(), service.CreateNotificationRequest{
 		RecipientID: req.RecipientID,
@@ -48,14 +48,10 @@ func (s *Server) CreateNotification(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return HandleError(c, func() {
-			logger.Error(
-				"create notification failed",
-				slog.Any("error", err),
-			)
-		}, err)
+		return HandleError(c, logger, err)
 	}
 
+	logger.Info("request completed", "result", "success", "notification_id", res.ID)
 	return SuccessWithHttpStatus(c, fiber.StatusCreated, CreateNotificationResponse{
 		ID:          res.ID,
 		RecipientID: res.RecipientID,

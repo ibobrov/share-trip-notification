@@ -14,6 +14,8 @@ import (
 )
 
 type Config struct {
+	OTLPEndpoint    string
+	AppEnv          string
 	HTTPPort        string
 	DatabaseDSN     string
 	LogFile         string
@@ -36,6 +38,8 @@ func Load() (Config, error) {
 	if port > 65535 {
 		return Config{}, fmt.Errorf("HTTP_PORT must be between 1 and 65535")
 	}
+	cfg.OTLPEndpoint = env("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:14319")
+	cfg.AppEnv = env("APP_ENV", "local")
 	cfg.HTTPPort = strconv.Itoa(port)
 	if cfg.DatabaseDSN, err = databaseDSN(6544); err != nil {
 		return Config{}, err

@@ -75,3 +75,17 @@ make down
 Манифесты этого сервиса находятся там же: `k8s/notification-config.yaml`,
 `k8s/notification-secret.example.yaml`, `k8s/notification-deployment.yaml`.
 Для локального запуска используется `.env.example`; реальные секреты в Git не сохраняются.
+
+## Наблюдаемость процесса публикации
+
+Сервис читает `APP_ENV` и `OTEL_EXPORTER_OTLP_ENDPOINT`; в Kubernetes Collector находится
+по адресу `otel-collector:4318`. Метрики доступны без токена на `GET /metrics`.
+Логи содержат service, operation, request_id/correlation_id, trace_id и доступные бизнес-ID.
+Полный payload события, токены и DSN в логи не записываются.
+
+Consumer читает metadata из Kafka headers, создаёт новую trace со span link на исходный контекст
+и подтверждает offset после COMMIT inbox и уведомления. Метрики: `notification_consume_*`,
+`notification_inbox_duplicate_total`, `notification_persist_*`. Последние измеряют сохранение
+уведомления в БД (created/error); внешнего SMS/email-провайдера пока нет.
+
+Dashboard и инструкция расследования находятся в репозитории share-trip: `docs/observability.md`.

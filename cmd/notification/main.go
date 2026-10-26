@@ -11,16 +11,21 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gofiber/adaptor/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/ibobrov/share-trip-notification/internal/api"
 	"github.com/ibobrov/share-trip-notification/internal/app"
 	"github.com/ibobrov/share-trip-notification/internal/config"
 	"github.com/ibobrov/share-trip-notification/internal/domain"
 	"github.com/ibobrov/share-trip-notification/internal/events"
+	"github.com/ibobrov/share-trip-notification/internal/observability/metrics"
 	"github.com/ibobrov/share-trip-notification/internal/observability/middleware"
+	"github.com/ibobrov/share-trip-notification/internal/observability/tracing"
 	"github.com/ibobrov/share-trip-notification/internal/repository"
 	"github.com/ibobrov/share-trip-notification/internal/service"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func main() {
@@ -43,6 +48,19 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	tp, err := tracing.NewProvider(ctx, tracing.Config{ServiceName: "notification", ServiceVersion: "1.0.0", Environment: cfg.AppEnv, Endpoint: cfg.OTLPEndpoint})
+	if err != nil {
+		return fmt.Errorf("init tracing: %w", err)
+	}
+	defer func() {
+		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tp.Shutdown(shutdown); err != nil {
+			log.Printf("tracing shutdown: %v", err)
+		}
+	}()
+	registry := prometheus.NewRegistry()
+	processMetrics := metrics.New(registry)
 	pool, err := repository.NewPool(ctx, cfg.DatabaseDSN)
 	if err != nil {
 		return fmt.Errorf("repository.NewPool: %w", err)
@@ -51,7 +69,7 @@ func run() error {
 
 	notificationRepo := repository.NewNotificationRepository()
 	notificationUseCase := domain.NewNotificationUseCase(notificationRepo)
-	notificationService := service.NewNotificationService(pool, notificationUseCase)
+	notificationService := service.NewNotificationService(pool, notificationUseCase, processMetrics)
 	server := api.NewServer(pool, notificationService)
 
 	application := fiber.New(fiber.Config{
@@ -71,10 +89,12 @@ func run() error {
 			log.Printf("logFile.Close: %v", err)
 		}
 	}(logFile)
+	application.Use(tracing.NewFiberMiddleware())
 	application.Use(middleware.Correlation(logger))
+	application.Get("/metrics", adaptor.HTTPHandler(promhttp.HandlerFor(registry, promhttp.HandlerOpts{})))
 
 	server.Route(application.Group(""), cfg.RequestTimeout)
-	consumer := events.NewConsumer(cfg.KafkaBrokers, cfg.TripEventsTopic, cfg.KafkaGroupID, notificationService, cfg.HandleTimeout)
+	consumer := events.NewConsumer(cfg.KafkaBrokers, cfg.TripEventsTopic, cfg.KafkaGroupID, notificationService, cfg.HandleTimeout, logger, processMetrics)
 	defer func() {
 		if err := consumer.Close(); err != nil {
 			logger.Error("close Kafka consumer", "error", err)

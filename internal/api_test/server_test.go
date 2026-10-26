@@ -70,7 +70,7 @@ func TestMain(m *testing.M) {
 
 	notificationRepo := repository.NewNotificationRepository()
 	notificationUseCase := domain.NewNotificationUseCase(notificationRepo)
-	testNotificationService = service.NewNotificationService(testPool, notificationUseCase)
+	testNotificationService = service.NewNotificationService(testPool, notificationUseCase, nil)
 	server := api.NewServer(testPool, testNotificationService)
 
 	testApp = fiber.New()

@@ -4,11 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/ibobrov/share-trip-notification/internal/observability/logctx"
 	"github.com/ibobrov/share-trip-notification/internal/repository/entity"
 	"github.com/jackc/pgx/v5"
 )
@@ -33,10 +31,6 @@ func (u *NotificationUseCase) CreateNotification(
 	tx pgx.Tx,
 	req CreateNotificationRequest,
 ) (*CreateNotificationResponse, error) {
-	logger := logctx.Logger(ctx).With(
-		slog.String("layer", "usecase"),
-		slog.String("usecase", "NotificationUsecase.CreateNotification"),
-	)
 
 	notification := entity.Notification{
 		ID:          uuid.New(),
@@ -48,10 +42,6 @@ func (u *NotificationUseCase) CreateNotification(
 	}
 
 	if _, err := u.notificationRepo.Create(ctx, tx, notification); err != nil {
-		logger.Error(
-			"repository create notification failed",
-			slog.Any("error", err),
-		)
 		return nil, fmt.Errorf("notificationRepo.CreateNotification: %w", err)
 	}
 

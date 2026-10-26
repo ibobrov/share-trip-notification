@@ -3,13 +3,13 @@ package events
 import (
 	"context"
 	"errors"
+	"github.com/segmentio/kafka-go"
 	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ibobrov/share-trip-notification/internal/service"
-	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,12 +44,14 @@ func (r *readerStub) Close() error { r.closed = true; return nil }
 type handlerStub struct {
 	calls    *[]string
 	requests []service.HandleTripPublishedRequest
+	contexts []context.Context
 	err      error
 }
 
-func (h *handlerStub) HandleTripPublished(_ context.Context, request service.HandleTripPublishedRequest) (service.HandleTripPublishedResponse, error) {
+func (h *handlerStub) HandleTripPublished(ctx context.Context, request service.HandleTripPublishedRequest) (service.HandleTripPublishedResponse, error) {
 	*h.calls = append(*h.calls, "handle")
 	h.requests = append(h.requests, request)
+	h.contexts = append(h.contexts, ctx)
 	return service.HandleTripPublishedResponse{}, h.err
 }
 

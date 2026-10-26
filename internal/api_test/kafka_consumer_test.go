@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/segmentio/kafka-go"
 	"os"
 	"strings"
 	"testing"
@@ -11,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ibobrov/share-trip-notification/internal/events"
-	"github.com/segmentio/kafka-go"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +45,7 @@ func TestConsumer_KafkaAndPostgres(t *testing.T) {
 			require.NoError(t, result.Errors[groupID])
 		}
 	}()
-	consumer := events.NewConsumer(brokers, topic, groupID, testNotificationService, 10*time.Second)
+	consumer := events.NewConsumer(brokers, topic, groupID, testNotificationService, 10*time.Second, nil, nil)
 	consumerCtx, stopConsumer := context.WithCancel(ctx)
 	done := make(chan error, 1)
 	go func() { done <- consumer.Run(consumerCtx) }()
@@ -64,7 +64,11 @@ func TestConsumer_KafkaAndPostgres(t *testing.T) {
 	require.NoError(t, err)
 	writer := &kafka.Writer{Addr: kafka.TCP(brokers...), Topic: topic, RequiredAcks: kafka.RequireAll, BatchSize: 1, MaxAttempts: 3}
 	defer func() { require.NoError(t, writer.Close()) }()
-	message := kafka.Message{Key: []byte(request.TripID.String()), Value: data}
+	message := kafka.Message{Key: []byte(request.TripID.String()), Value: data, Headers: []kafka.Header{
+		{Key: "event_id", Value: []byte(request.EventID.String())}, {Key: "event_type", Value: []byte("TripPublished")},
+		{Key: "request_id", Value: []byte("request-123")}, {Key: "correlation_id", Value: []byte("publication-456")},
+		{Key: "causation_id", Value: []byte("request-123")}, {Key: "traceparent", Value: []byte("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")},
+	}}
 	require.NoError(t, writer.WriteMessages(ctx, message, message, kafka.Message{Value: []byte(`{"event_type":"TripCreated"}`)}))
 	require.Eventually(t, func() bool {
 		result, err := client.OffsetFetch(ctx, &kafka.OffsetFetchRequest{GroupID: groupID, Topics: map[string][]int{topic: {0}}})

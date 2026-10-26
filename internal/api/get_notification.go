@@ -24,10 +24,10 @@ func (s *Server) GetNotification(c *fiber.Ctx) error {
 	ctx := c.UserContext()
 
 	logger := logctx.Logger(ctx).With(
-		slog.String("server", "NotificationServer"),
-		slog.String("handler", "GetNotification"),
+		slog.String("component", "NotificationServer"),
+		slog.String("operation", "GetNotification"),
 	)
-	logger.Info("get notification request accepted")
+	logger.Debug("get notification request accepted")
 
 	notificationID, err := uuid.Parse(c.Params("notificationId"))
 	if err != nil {
@@ -39,14 +39,10 @@ func (s *Server) GetNotification(c *fiber.Ctx) error {
 	})
 
 	if err != nil {
-		return HandleError(c, func() {
-			logger.Error(
-				"get notification failed",
-				slog.Any("error", err),
-			)
-		}, err)
+		return HandleError(c, logger, err)
 	}
 
+	logger.Info("request completed", "result", "success", "notification_id", res.ID)
 	return Success(c, GetNotificationResponse{
 		ID:          res.ID,
 		RecipientID: res.RecipientID,
